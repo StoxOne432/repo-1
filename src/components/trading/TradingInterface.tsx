@@ -10,10 +10,50 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarketData } from "@/hooks/useMarketData";
+import { TrendingStocks } from "./TrendingStocks";
+import { StockSearch } from "./StockSearch";
+import { TradingModal } from "./TradingModal";
+import { TrendingStock, SearchStock } from "@/hooks/useIndianStockAPI";
 
 interface TradingInterfaceProps {
   selectedStock?: string;
 }
+
+interface Stock {
+  symbol: string;
+  name: string;
+  ltp: number;
+  change: number;
+  changePercent: number;
+  volume?: string;
+  high?: number;
+  low?: number;
+}
+
+// Helper function to convert SearchStock to Stock interface for trading
+const convertToStock = (stock: TrendingStock | SearchStock | null): Stock | null => {
+  if (!stock) return null;
+  
+  if ('ltp' in stock) {
+    // This is a TrendingStock
+    return stock as Stock;
+  } else {
+    // This is a SearchStock, convert it
+    const nsePrice = parseFloat(stock.currentPrice.NSE) || 0;
+    const percentChange = parseFloat(stock.percentChange) || 0;
+    
+    return {
+      symbol: stock.symbol,
+      name: stock.companyName,
+      ltp: nsePrice,
+      change: (nsePrice * percentChange) / 100,
+      changePercent: percentChange,
+      volume: '0',
+      high: nsePrice,
+      low: nsePrice,
+    };
+  }
+};
 
 export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -23,6 +63,9 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
   const [orderMode, setOrderMode] = useState("MARKET");
   const [userPortfolios, setUserPortfolios] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tradingModalOpen, setTradingModalOpen] = useState(false);
+  const [modalStock, setModalStock] = useState<TrendingStock | SearchStock | null>(null);
+  const [modalOrderType, setModalOrderType] = useState<'BUY' | 'SELL'>('BUY');
   
   const { toast } = useToast();
   const { user, profile } = useAuth();
@@ -33,13 +76,24 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     stock.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const [activeStock, setActiveStock] = useState(
-    selectedStock ? marketData.find(s => s.symbol === selectedStock) || marketData[0] : marketData[0]
+  const [activeStock, setActiveStock] = useState<Stock | null>(
+    selectedStock ? marketData.find(s => s.symbol === selectedStock) || marketData[0] || null : marketData[0] || null
   );
 
   useEffect(() => {
     if (user) {
       fetchUserPortfolios();
+    }
+  }, [user]);
+
+  // Refresh portfolio data every 30 seconds to keep it updated
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(() => {
+        fetchUserPortfolios();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     }
   }, [user]);
 
@@ -84,10 +138,10 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     }
 
     const orderValue = orderMode === "MARKET" 
-      ? activeStock.ltp * parseInt(quantity)
+      ? (activeStock?.ltp || 0) * parseInt(quantity)
       : parseFloat(price) * parseInt(quantity);
 
-    const finalPrice = orderMode === "MARKET" ? activeStock.ltp : parseFloat(price);
+    const finalPrice = orderMode === "MARKET" ? (activeStock?.ltp || 0) : parseFloat(price);
 
     if (orderType === "BUY" && orderValue > profile.funds) {
       toast({
@@ -103,20 +157,20 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     try {
       if (orderType === "BUY") {
         // Check if user already has this stock
-        const existingPortfolio = userPortfolios.find(p => p.stock_symbol === activeStock.symbol);
+        const existingPortfolio = userPortfolios.find(p => p.stock_symbol === activeStock?.symbol);
         
         if (existingPortfolio) {
           // Update existing portfolio
           const newQuantity = existingPortfolio.quantity + parseInt(quantity);
           const newAvgPrice = ((existingPortfolio.avg_price * existingPortfolio.quantity) + orderValue) / newQuantity;
-          const newProfitLoss = (activeStock.ltp - newAvgPrice) * newQuantity;
+          const newProfitLoss = ((activeStock?.ltp || 0) - newAvgPrice) * newQuantity;
 
           const { error } = await supabase
             .from('user_portfolios')
             .update({
               quantity: newQuantity,
               avg_price: newAvgPrice,
-              current_price: activeStock.ltp,
+              current_price: activeStock?.ltp || 0,
               profit_loss: newProfitLoss,
             })
             .eq('id', existingPortfolio.id);
@@ -128,11 +182,11 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
             .from('user_portfolios')
             .insert({
               user_id: user.id,
-              stock_symbol: activeStock.symbol,
+              stock_symbol: activeStock?.symbol || '',
               quantity: parseInt(quantity),
               avg_price: finalPrice,
-              current_price: activeStock.ltp,
-              profit_loss: (activeStock.ltp - finalPrice) * parseInt(quantity),
+              current_price: activeStock?.ltp || 0,
+              profit_loss: ((activeStock?.ltp || 0) - finalPrice) * parseInt(quantity),
             });
 
           if (error) throw error;
@@ -149,7 +203,7 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
         if (fundsError) throw fundsError;
 
       } else { // SELL
-        const existingPortfolio = userPortfolios.find(p => p.stock_symbol === activeStock.symbol);
+        const existingPortfolio = userPortfolios.find(p => p.stock_symbol === activeStock?.symbol);
         
         if (!existingPortfolio || existingPortfolio.quantity < parseInt(quantity)) {
           toast({
@@ -172,13 +226,13 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
           if (error) throw error;
         } else {
           // Update portfolio with remaining shares
-          const newProfitLoss = (activeStock.ltp - existingPortfolio.avg_price) * newQuantity;
+          const newProfitLoss = ((activeStock?.ltp || 0) - existingPortfolio.avg_price) * newQuantity;
 
           const { error } = await supabase
             .from('user_portfolios')
             .update({
               quantity: newQuantity,
-              current_price: activeStock.ltp,
+              current_price: activeStock?.ltp || 0,
               profit_loss: newProfitLoss,
             })
             .eq('id', existingPortfolio.id);
@@ -199,14 +253,18 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
 
       toast({
         title: "Order Executed Successfully",
-        description: `${orderType} order for ${quantity} shares of ${activeStock.symbol} worth ₹${orderValue.toLocaleString()}`,
+        description: `${orderType} order for ${quantity} shares of ${activeStock?.symbol || 'N/A'} worth ₹${orderValue.toLocaleString()}`,
       });
 
       // Reset form and refresh data
       setQuantity("");
       setPrice("");
-      fetchUserPortfolios();
-      window.location.reload(); // Refresh to update funds display
+      await fetchUserPortfolios();
+      
+      // Force refresh after successful transaction
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
       
     } catch (error) {
       console.error('Error placing order:', error);
@@ -233,9 +291,27 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     }).format(amount);
   };
 
+  const handleBuyStock = (stock: TrendingStock | SearchStock) => {
+    setModalStock(stock);
+    setModalOrderType('BUY');
+    setTradingModalOpen(true);
+  };
+
+  const handleSellStock = (stock: TrendingStock | SearchStock) => {
+    setModalStock(stock);
+    setModalOrderType('SELL');
+    setTradingModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-6 space-y-6">
+        {/* Trending Stocks Section */}
+        <TrendingStocks onBuyStock={handleBuyStock} onSellStock={handleSellStock} />
+
+        {/* Stock Search Section */}
+        <StockSearch onBuyStock={handleBuyStock} onSellStock={handleSellStock} />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Stock Search & List */}
           <div className="lg:col-span-2">
@@ -273,7 +349,7 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                     <div
                       key={stock.symbol}
                       className={`p-4 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 ${
-                        activeStock.symbol === stock.symbol 
+                        activeStock?.symbol === stock.symbol 
                           ? 'border-primary bg-primary/5' 
                           : 'border-border'
                       }`}
@@ -319,10 +395,15 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
               <CardHeader>
                 <CardTitle>Place Order</CardTitle>
                 <CardDescription>
-                  Trading {activeStock.symbol} - {activeStock.name}
+                  {activeStock ? `Trading ${activeStock.symbol} - ${activeStock.name}` : 'Select a stock to trade'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {!activeStock ? (
+                  <div className="text-center text-muted-foreground py-8">
+                    <p>Please select a stock from the market watch to start trading</p>
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   {/* Order Type Toggle */}
                   <div className="grid grid-cols-2 gap-2">
@@ -359,10 +440,10 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                       <span className="text-sm text-muted-foreground">Available Funds</span>
                       <span className="font-bold trading-mono text-primary">₹{profile?.funds?.toLocaleString('en-IN') || '0'}</span>
                     </div>
-                    {getUserHolding(activeStock.symbol) && (
+                    {getUserHolding(activeStock?.symbol || '') && (
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Your Holdings</span>
-                        <span className="font-bold trading-mono">{getUserHolding(activeStock.symbol)?.quantity} shares</span>
+                        <span className="font-bold trading-mono">{getUserHolding(activeStock?.symbol || '')?.quantity} shares</span>
                       </div>
                     )}
                   </div>
@@ -371,14 +452,14 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                   <div className="p-3 bg-muted/30 rounded-lg">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Current Price</span>
-                      <span className="font-bold trading-mono">₹{activeStock.ltp.toFixed(2)}</span>
+                      <span className="font-bold trading-mono">₹{(activeStock?.ltp || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center mt-1">
                       <span className="text-sm text-muted-foreground">Change</span>
                       <span className={`text-sm trading-mono ${
-                        activeStock.change >= 0 ? 'text-success' : 'text-destructive'
+                        (activeStock?.change || 0) >= 0 ? 'text-success' : 'text-destructive'
                       }`}>
-                        {activeStock.change >= 0 ? '+' : ''}₹{activeStock.change.toFixed(2)} ({activeStock.changePercent >= 0 ? '+' : ''}{activeStock.changePercent.toFixed(2)}%)
+                        {(activeStock?.change || 0) >= 0 ? '+' : ''}₹{(activeStock?.change || 0).toFixed(2)} ({(activeStock?.changePercent || 0) >= 0 ? '+' : ''}{(activeStock?.changePercent || 0).toFixed(2)}%)
                       </span>
                     </div>
                   </div>
@@ -420,7 +501,7 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                         <span className="font-bold trading-mono">
                           {formatCurrency(
                             orderMode === "MARKET" 
-                              ? activeStock.ltp * parseInt(quantity)
+                              ? (activeStock?.ltp || 0) * parseInt(quantity)
                               : (price ? parseFloat(price) * parseInt(quantity) : 0)
                           )}
                         </span>
@@ -431,11 +512,11 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                   {/* Order Validation Messages */}
                   {orderType === "BUY" && quantity && profile && (
                     <div className={`p-2 rounded text-xs ${
-                      (orderMode === "MARKET" ? activeStock.ltp * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds
+                      (orderMode === "MARKET" ? (activeStock?.ltp || 0) * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds
                         ? 'bg-destructive/10 text-destructive'
                         : 'bg-success/10 text-success'
                     }`}>
-                      {(orderMode === "MARKET" ? activeStock.ltp * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds
+                      {(orderMode === "MARKET" ? (activeStock?.ltp || 0) * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds
                         ? 'Insufficient funds for this order'
                         : 'Order can be placed'
                       }
@@ -444,11 +525,11 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
 
                   {orderType === "SELL" && quantity && (
                     <div className={`p-2 rounded text-xs ${
-                      !getUserHolding(activeStock.symbol) || (getUserHolding(activeStock.symbol)?.quantity || 0) < parseInt(quantity)
+                      !getUserHolding(activeStock?.symbol || '') || (getUserHolding(activeStock?.symbol || '')?.quantity || 0) < parseInt(quantity)
                         ? 'bg-destructive/10 text-destructive'
                         : 'bg-success/10 text-success'
                     }`}>
-                      {!getUserHolding(activeStock.symbol) || (getUserHolding(activeStock.symbol)?.quantity || 0) < parseInt(quantity)
+                      {!getUserHolding(activeStock?.symbol || '') || (getUserHolding(activeStock?.symbol || '')?.quantity || 0) < parseInt(quantity)
                         ? 'Insufficient shares to sell'
                         : 'Order can be placed'
                       }
@@ -461,11 +542,11 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                     className="w-full"
                     onClick={handlePlaceOrder}
                     disabled={!quantity || isSubmitting || 
-                      (orderType === "BUY" && profile && (orderMode === "MARKET" ? activeStock.ltp * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds) ||
-                      (orderType === "SELL" && (!getUserHolding(activeStock.symbol) || (getUserHolding(activeStock.symbol)?.quantity || 0) < parseInt(quantity)))
+                      (orderType === "BUY" && profile && (orderMode === "MARKET" ? (activeStock?.ltp || 0) * parseInt(quantity) : (price ? parseFloat(price) * parseInt(quantity) : 0)) > profile.funds) ||
+                      (orderType === "SELL" && (!getUserHolding(activeStock?.symbol || '') || (getUserHolding(activeStock?.symbol || '')?.quantity || 0) < parseInt(quantity)))
                     }
                   >
-                    {isSubmitting ? "Processing..." : `${orderType} ${activeStock.symbol}`}
+                    {isSubmitting ? "Processing..." : `${orderType} ${activeStock?.symbol || 'N/A'}`}
                   </Button>
 
                   {/* Quick Actions */}
@@ -501,10 +582,21 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                     </Badge>
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
+
+        {/* Trading Modal */}
+        {modalStock && (
+          <TradingModal
+            isOpen={tradingModalOpen}
+            onClose={() => setTradingModalOpen(false)}
+            stock={convertToStock(modalStock)}
+            orderType={modalOrderType}
+          />
+        )}
       </div>
     </div>
   );

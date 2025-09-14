@@ -51,10 +51,16 @@ export function Dashboard() {
         .from('bank_details')
         .select('*')
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      setBankDetails(data);
+      setBankDetails(data || {
+        account_name: "TradePro Finance Ltd",
+        account_number: "123456789012",
+        ifsc_code: "HDFC0001234",
+        bank_name: "HDFC Bank",
+        branch: "Mumbai Main Branch"
+      });
     } catch (error) {
       // Use fallback data if no active bank details found
       setBankDetails({

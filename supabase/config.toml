@@ -1,1 +1,4 @@
 project_id = "gkagkpsbmlugllipiypu"
+
+[functions.indian-stock-api]
+verify_jwt = false

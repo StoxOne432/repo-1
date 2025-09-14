@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { calculatePortfolioMetrics, formatCurrency, formatNumber } from "@/lib/portfolioUtils";
 
 interface UserPortfolio {
   id: string;
@@ -26,14 +27,32 @@ export default function PortfolioPage() {
     }
   }, [user]);
 
+  // Add interval to refresh portfolio data every 30 seconds
+  useEffect(() => {
+    if (user) {
+      const interval = setInterval(() => {
+        fetchUserPortfolios();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   const fetchUserPortfolios = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('user_portfolios')
         .select('*')
-        .eq('user_id', user?.id);
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
         
-      if (error) throw error;
+      if (error) {
+        console.error('Portfolio fetch error:', error);
+        throw error;
+      }
+      
+      console.log('Fetched portfolios:', data);
       setUserPortfolios(data || []);
     } catch (error) {
       console.error('Error fetching user portfolios:', error);
@@ -60,15 +79,7 @@ export default function PortfolioPage() {
     avatar: "",
   };
 
-  const totalPortfolioValue = userPortfolios.reduce(
-    (sum, portfolio) => sum + (portfolio.quantity * portfolio.current_price),
-    0
-  );
-
-  const totalProfitLoss = userPortfolios.reduce(
-    (sum, portfolio) => sum + portfolio.profit_loss,
-    0
-  );
+  const portfolioMetrics = calculatePortfolioMetrics(userPortfolios);
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,7 +98,7 @@ export default function PortfolioPage() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Portfolio Value</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold fintech-mono">₹{totalPortfolioValue.toLocaleString()}</div>
+              <div className="text-2xl font-bold fintech-mono">{formatCurrency(portfolioMetrics.totalValue)}</div>
             </CardContent>
           </Card>
 
@@ -97,10 +108,10 @@ export default function PortfolioPage() {
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold fintech-mono flex items-center gap-2 ${
-                totalProfitLoss >= 0 ? 'text-success' : 'text-destructive'
+                portfolioMetrics.totalProfitLoss >= 0 ? 'text-success' : 'text-destructive'
               }`}>
-                {totalProfitLoss >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
-                {totalProfitLoss >= 0 ? '+' : ''}₹{totalProfitLoss.toFixed(2)}
+                {portfolioMetrics.totalProfitLoss >= 0 ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+                {portfolioMetrics.totalProfitLoss >= 0 ? '+' : ''}{formatCurrency(portfolioMetrics.totalProfitLoss)}
               </div>
             </CardContent>
           </Card>
@@ -110,7 +121,7 @@ export default function PortfolioPage() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Holdings</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold fintech-mono">{userPortfolios.length}</div>
+              <div className="text-2xl font-bold fintech-mono">{portfolioMetrics.totalHoldings}</div>
             </CardContent>
           </Card>
         </div>
