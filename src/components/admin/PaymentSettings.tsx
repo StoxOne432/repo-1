@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Edit, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface BankDetail {
@@ -261,6 +261,31 @@ export function PaymentSettings() {
     setUpiDialogOpen(true);
   };
 
+  const deleteUpi = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('upi_details')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "UPI details deleted successfully",
+      });
+      
+      fetchUpiDetails();
+    } catch (error) {
+      console.error('Error deleting UPI details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete UPI details",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center p-4"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   }
@@ -464,21 +489,28 @@ export function PaymentSettings() {
                         {upi.upi_id} {upi.description && `• ${upi.description}`}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded ${upi.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {upi.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                      <Button variant="outline" size="sm" onClick={() => editUpi(upi)}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleUpiActive(upi.id, upi.is_active)}
-                      >
-                        {upi.is_active ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                      </Button>
-                    </div>
+                     <div className="flex items-center gap-2">
+                       <span className={`px-2 py-1 text-xs rounded ${upi.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                         {upi.is_active ? 'Active' : 'Inactive'}
+                       </span>
+                       <Button variant="outline" size="sm" onClick={() => editUpi(upi)}>
+                         <Edit className="w-4 h-4" />
+                       </Button>
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={() => toggleUpiActive(upi.id, upi.is_active)}
+                       >
+                         {upi.is_active ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                       </Button>
+                       <Button
+                         variant="destructive"
+                         size="sm"
+                         onClick={() => deleteUpi(upi.id)}
+                       >
+                         <Trash2 className="w-4 h-4" />
+                       </Button>
+                     </div>
                   </div>
                 ))
               )}

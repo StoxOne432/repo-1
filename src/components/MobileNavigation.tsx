@@ -16,7 +16,7 @@ export function MobileNavigation() {
     { icon: Home, label: 'Home', path: '/dashboard' },
     { icon: TrendingUp, label: 'Trading', path: '/trading' },
     { icon: Wallet, label: 'Wallet', action: 'wallet' },
-    { icon: User, label: 'Profile', path: '/profile' },
+    { icon: User, label: 'Orders', path: '/orders' },
     ...(role === 'admin' ? [{ icon: Settings, label: 'Admin', path: '/admin' }] : []),
   ];
 
