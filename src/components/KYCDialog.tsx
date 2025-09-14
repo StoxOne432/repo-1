@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +22,10 @@ interface KYCDocument {
   kyc_status: string;
   verification_notes?: string;
   verification_date?: string;
+  bank_name?: string;
+  account_number?: string;
+  ifsc_code?: string;
+  account_holder_name?: string;
 }
 
 export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
@@ -28,6 +33,10 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
   const { toast } = useToast();
   const [aadharUrl, setAadharUrl] = useState("");
   const [panUrl, setPanUrl] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [ifscCode, setIfscCode] = useState("");
+  const [accountHolderName, setAccountHolderName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingKYC, setExistingKYC] = useState<KYCDocument | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,6 +66,10 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
         setExistingKYC(data);
         setAadharUrl(data.aadhar_card_url || "");
         setPanUrl(data.pan_card_url || "");
+        setBankName(data.bank_name || "");
+        setAccountNumber(data.account_number || "");
+        setIfscCode(data.ifsc_code || "");
+        setAccountHolderName(data.account_holder_name || "");
       }
     } catch (error) {
       console.error('Error fetching KYC documents:', error);
@@ -68,10 +81,10 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
   const handleSubmitKYC = async () => {
     if (!user) return;
 
-    if (!aadharUrl || !panUrl) {
+    if (!aadharUrl || !panUrl || !bankName || !accountNumber || !ifscCode || !accountHolderName) {
       toast({
-        title: "Missing Documents",
-        description: "Please upload both Aadhar card and PAN card",
+        title: "Missing Information",
+        description: "Please fill in all required fields including documents and bank details",
         variant: "destructive",
       });
       return;
@@ -84,6 +97,10 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
         user_id: user.id,
         aadhar_card_url: aadharUrl,
         pan_card_url: panUrl,
+        bank_name: bankName,
+        account_number: accountNumber,
+        ifsc_code: ifscCode,
+        account_holder_name: accountHolderName,
         kyc_status: 'pending'
       };
 
@@ -159,7 +176,7 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -202,6 +219,7 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
                   folder="aadhar"
                   accept=".jpg,.jpeg,.png,.pdf"
                   maxSize={5}
+                  existingImageUrl={aadharUrl}
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -220,11 +238,69 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
                   folder="pan"
                   accept=".jpg,.jpeg,.png,.pdf"
                   maxSize={5}
+                  existingImageUrl={panUrl}
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Upload a clear photo of your PAN card (JPG, PNG, PDF - Max 5MB)
               </p>
+            </div>
+
+            {/* Bank Details Section */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-semibold">Bank Account Details</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="bank-name" className="text-sm font-medium">
+                    Bank Name *
+                  </Label>
+                  <Input
+                    id="bank-name"
+                    placeholder="Enter bank name"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="account-holder" className="text-sm font-medium">
+                    Account Holder Name *
+                  </Label>
+                  <Input
+                    id="account-holder"
+                    placeholder="Enter account holder name"
+                    value={accountHolderName}
+                    onChange={(e) => setAccountHolderName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="account-number" className="text-sm font-medium">
+                    Account Number *
+                  </Label>
+                  <Input
+                    id="account-number"
+                    placeholder="Enter account number"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="ifsc-code" className="text-sm font-medium">
+                    IFSC Code *
+                  </Label>
+                  <Input
+                    id="ifsc-code"
+                    placeholder="Enter IFSC code"
+                    value={ifscCode}
+                    onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -249,7 +325,7 @@ export function KYCDialog({ open, onOpenChange }: KYCDialogProps) {
             <Button
               className="flex-1"
               onClick={handleSubmitKYC}
-              disabled={isSubmitting || !aadharUrl || !panUrl || existingKYC?.kyc_status === 'approved'}
+              disabled={isSubmitting || !aadharUrl || !panUrl || !bankName || !accountNumber || !ifscCode || !accountHolderName || existingKYC?.kyc_status === 'approved'}
             >
               {isSubmitting ? "Submitting..." : existingKYC ? "Update KYC" : "Submit KYC"}
             </Button>

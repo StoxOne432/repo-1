@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Search, DollarSign, UserPlus, Users, Trash2, KeyRound } from 'lucide-react';
+import { ChangePasswordDialog } from './ChangePasswordDialog';
 
 interface User {
   id: string;
@@ -28,6 +29,7 @@ export function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [passwordChangeUser, setPasswordChangeUser] = useState<User | null>(null);
   const { toast } = useToast();
 
   const ITEMS_PER_PAGE = 10;
@@ -265,6 +267,7 @@ export function UserManagement() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => setPasswordChangeUser(user)}
                           >
                             <KeyRound className="h-3 w-3 mr-1" />
                             Change Password
@@ -368,6 +371,14 @@ export function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Password Change Dialog */}
+      <ChangePasswordDialog
+        open={!!passwordChangeUser}
+        onOpenChange={() => setPasswordChangeUser(null)}
+        userId={passwordChangeUser?.user_id || ''}
+        userName={passwordChangeUser?.full_name || ''}
+      />
     </>
   );
 }

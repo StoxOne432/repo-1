@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ interface ImageUploadProps {
   maxSize?: number; // in MB
   accept?: string;
   className?: string;
+  existingImageUrl?: string; // Add this to handle existing images
 }
 
 export function ImageUpload({
@@ -21,11 +22,17 @@ export function ImageUpload({
   maxSize = 5,
   accept = "image/*",
   className = "",
+  existingImageUrl = "",
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState<string>("");
+  const [preview, setPreview] = useState<string>(existingImageUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Update preview when existingImageUrl changes
+  useEffect(() => {
+    setPreview(existingImageUrl);
+  }, [existingImageUrl]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -66,8 +73,8 @@ export function ImageUpload({
       if (!user) throw new Error("User not authenticated");
 
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      const filePath = folder ? `${folder}/${fileName}` : fileName;
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = folder ? `${user.id}/${folder}/${fileName}` : `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from(bucket)
@@ -133,7 +140,7 @@ export function ImageUpload({
       ) : (
         <div className="relative">
           <img
-            src={preview}
+            src={preview.startsWith('http') ? preview : `${supabase.storage.from(bucket).getPublicUrl('').data.publicUrl}/${preview}`}
             alt="Preview"
             className="w-full h-32 object-cover rounded-md border"
           />

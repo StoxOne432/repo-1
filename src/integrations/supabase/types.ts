@@ -86,8 +86,12 @@ export type Database = {
       kyc_documents: {
         Row: {
           aadhar_card_url: string | null
+          account_holder_name: string | null
+          account_number: string | null
+          bank_name: string | null
           created_at: string
           id: string
+          ifsc_code: string | null
           kyc_status: string
           pan_card_url: string | null
           updated_at: string
@@ -98,8 +102,12 @@ export type Database = {
         }
         Insert: {
           aadhar_card_url?: string | null
+          account_holder_name?: string | null
+          account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
+          ifsc_code?: string | null
           kyc_status?: string
           pan_card_url?: string | null
           updated_at?: string
@@ -110,8 +118,12 @@ export type Database = {
         }
         Update: {
           aadhar_card_url?: string | null
+          account_holder_name?: string | null
+          account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
+          ifsc_code?: string | null
           kyc_status?: string
           pan_card_url?: string | null
           updated_at?: string

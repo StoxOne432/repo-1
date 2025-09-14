@@ -8,13 +8,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Search, FileText, Clock, CheckCircle, XCircle, Eye, ExternalLink } from 'lucide-react';
+import { Search, FileText, Clock, CheckCircle, XCircle, Eye, ExternalLink, CreditCard } from 'lucide-react';
 
 interface KYCDocument {
   id: string;
   user_id: string;
   aadhar_card_url?: string;
   pan_card_url?: string;
+  bank_name?: string;
+  account_number?: string;
+  ifsc_code?: string;
+  account_holder_name?: string;
   kyc_status: string;
   verification_notes?: string;
   verification_date?: string;
@@ -200,6 +204,7 @@ export function KYCManagement() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead>Documents</TableHead>
+              <TableHead>Bank Details</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Submitted Date</TableHead>
               <TableHead>Actions</TableHead>
@@ -239,6 +244,23 @@ export function KYCManagement() {
                         PAN
                       </Button>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <div className="text-xs">
+                      {kyc.bank_name ? (
+                        <div>
+                          <p className="font-medium">{kyc.bank_name}</p>
+                          <p className="text-muted-foreground">
+                            {kyc.account_holder_name}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Not provided</span>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -307,6 +329,33 @@ export function KYCManagement() {
                               )}
                             </div>
                           </div>
+
+                          {/* Bank Details Section */}
+                          {selectedKYC.bank_name && (
+                            <div>
+                              <p className="text-sm font-medium mb-2">Bank Details</p>
+                              <div className="bg-muted/30 p-3 rounded-lg space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="font-medium">Bank Name:</span>
+                                  <span>{selectedKYC.bank_name}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="font-medium">Account Holder:</span>
+                                  <span>{selectedKYC.account_holder_name}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="font-medium">Account Number:</span>
+                                  <span className="font-mono">
+                                    {selectedKYC.account_number?.replace(/(.{4})/g, '$1 ')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="font-medium">IFSC Code:</span>
+                                  <span className="font-mono">{selectedKYC.ifsc_code}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {selectedKYC.verification_notes && (
                             <div>
