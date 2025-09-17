@@ -3,11 +3,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Header } from "@/components/Header";
 import { calculatePortfolioMetrics, formatCurrency, calculateDaysHeld, calculateStockProfitLoss } from "@/lib/portfolioUtils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { TradingModal } from "@/components/trading/TradingModal";
 
 interface UserPortfolio {
   id: string;
@@ -22,10 +24,20 @@ interface UserPortfolio {
   updated_at: string;
 }
 
+interface Stock {
+  symbol: string;
+  name: string;
+  ltp: number;
+  change: number;
+  changePercent: number;
+}
+
 export default function PortfolioPage() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, updateFunds } = useAuth();
   const [userPortfolios, setUserPortfolios] = useState<UserPortfolio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showTradingModal, setShowTradingModal] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
 
   const fetchUserPortfolios = async () => {
     if (!user) return;
@@ -87,6 +99,33 @@ export default function PortfolioPage() {
   };
 
   const portfolioMetrics = calculatePortfolioMetrics(userPortfolios);
+
+  const handleSellStock = (portfolio: UserPortfolio) => {
+    const stock: Stock = {
+      symbol: portfolio.stock_symbol,
+      name: portfolio.stock_symbol, // We don't have company name in portfolio, use symbol
+      ltp: portfolio.current_price,
+      change: 0, // We don't track daily change in portfolio
+      changePercent: 0
+    };
+    setSelectedStock(stock);
+    setShowTradingModal(true);
+  };
+
+  const handleTradingModalClose = () => {
+    setShowTradingModal(false);
+    setSelectedStock(null);
+  };
+
+  const handleOrderComplete = async () => {
+    // Refresh portfolio data after successful trade
+    await fetchUserPortfolios();
+    // Refresh user profile to update funds
+    if (updateFunds) {
+      // The funds will be updated by the auth context
+    }
+    handleTradingModalClose();
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -211,16 +250,26 @@ export default function PortfolioPage() {
                           </div>
                         </div>
                         
-                        <div className="text-right space-y-1">
-                          <div className="text-lg font-bold fintech-mono">
-                            {formatCurrency(portfolio.current_price * portfolio.quantity)}
+                        <div className="flex items-center gap-4">
+                          <div className="text-right space-y-1">
+                            <div className="text-lg font-bold fintech-mono">
+                              {formatCurrency(portfolio.current_price * portfolio.quantity)}
+                            </div>
+                            <div className={`text-sm fintech-mono ${profitLoss >= 0 ? 'text-success' : 'text-destructive'}`}>
+                              {profitLoss >= 0 ? '+' : ''}{formatCurrency(profitLoss)}
+                            </div>
+                            <div className={`text-xs fintech-mono ${profitLossPercentage >= 0 ? 'text-success' : 'text-destructive'}`}>
+                              ({profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(2)}%)
+                            </div>
                           </div>
-                          <div className={`text-sm fintech-mono ${profitLoss >= 0 ? 'text-success' : 'text-destructive'}`}>
-                            {profitLoss >= 0 ? '+' : ''}{formatCurrency(profitLoss)}
-                          </div>
-                          <div className={`text-xs fintech-mono ${profitLossPercentage >= 0 ? 'text-success' : 'text-destructive'}`}>
-                            ({profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(2)}%)
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSellStock(portfolio)}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            Sell
+                          </Button>
                         </div>
                       </div>
                     );
@@ -231,6 +280,15 @@ export default function PortfolioPage() {
           </Card>
         </div>
       </main>
+
+      {/* Trading Modal */}
+      <TradingModal
+        isOpen={showTradingModal}
+        onClose={handleTradingModalClose}
+        stock={selectedStock}
+        orderType="SELL"
+        onOrderComplete={handleOrderComplete}
+      />
     </div>
   );
 }

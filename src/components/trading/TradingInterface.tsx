@@ -31,36 +31,47 @@ interface Stock {
 }
 
 // Helper function to convert SearchStock or TrendingStock to Stock interface for trading
-const convertToStock = (stock: TrendingStock | SearchStock | null): Stock | null => {
-  if (!stock) return null;
+const convertToStock = (data: TrendingStock | SearchStock | (SearchStock & { exchange: 'NSE' | 'BSE' }) | null): Stock | null => {
+  console.log('Converting stock data:', data);
   
-  if ('price' in stock) {
-    // This is a TrendingStock with new interface
-    return {
-      symbol: stock.symbol,
-      name: stock.company_name,
-      ltp: stock.price,
-      change: stock.net_change,
-      changePercent: stock.percent_change,
-      volume: stock.volume || '0',
-      high: stock.high || stock.price,
-      low: stock.low || stock.price,
+  if (!data) return null;
+  
+  if ('ticker_id' in data) {
+    // This is a TrendingStock
+    const trendingStock = data as TrendingStock;
+    const result = {
+      symbol: trendingStock.ticker_id,
+      name: trendingStock.company_name,
+      ltp: trendingStock.price || 0,
+      change: trendingStock.net_change || 0,
+      changePercent: trendingStock.percent_change || 0
     };
+    console.log('Converted TrendingStock:', result);
+    return result;
   } else {
-    // This is a SearchStock, convert it
-    const nsePrice = parseFloat(stock.currentPrice.NSE) || 0;
-    const percentChange = parseFloat(stock.percentChange) || 0;
+    // This is a SearchStock format
+    const searchStock = data as SearchStock & { exchange?: 'NSE' | 'BSE', price?: number };
+    let price = searchStock.price || 0;
     
-    return {
-      symbol: stock.symbol,
-      name: stock.companyName,
-      ltp: nsePrice,
-      change: (nsePrice * percentChange) / 100,
-      changePercent: percentChange,
-      volume: '0',
-      high: nsePrice,
-      low: nsePrice,
+    if (!price) {
+      price = searchStock.exchange === 'BSE' ? 
+        parseFloat(searchStock.currentPrice.BSE || '0') : 
+        parseFloat(searchStock.currentPrice.NSE || searchStock.currentPrice.BSE || '0');
+    }
+    
+    // Ensure we have valid numbers
+    const changePercent = parseFloat(searchStock.percentChange || '0') || 0;
+    const change = price > 0 ? (price * changePercent) / 100 : 0;
+    
+    const result = {
+      symbol: `${searchStock.symbol}${searchStock.exchange ? '.' + searchStock.exchange : ''}`,
+      name: searchStock.companyName || searchStock.symbol,
+      ltp: price || 0,
+      change: change || 0,
+      changePercent: changePercent || 0
     };
+    console.log('Converted SearchStock:', result);
+    return result;
   }
 };
 
@@ -300,14 +311,29 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     }).format(amount);
   };
 
-  const handleBuyStock = (stock: TrendingStock | (SearchStock & { exchange?: 'NSE' | 'BSE' })) => {
-    setModalStock(stock);
+  const handleBuyStock = (stockData: TrendingStock | (SearchStock & { exchange: 'NSE' | 'BSE' })) => {
+    console.log('=== BUY BUTTON CLICKED ===');
+    console.log('Raw stock data received:', stockData);
+    
+    const stock = convertToStock(stockData);
+    console.log('Stock after conversion:', stock);
+    
+    if (!stock) {
+      console.error('Failed to convert stock data');
+      return;
+    }
+    
+    console.log('Setting modal stock and opening modal...');
+    setModalStock(stockData);
     setModalOrderType('BUY');
     setTradingModalOpen(true);
   };
 
-  const handleSellStock = (stock: TrendingStock | (SearchStock & { exchange?: 'NSE' | 'BSE' })) => {
-    setModalStock(stock);
+  const handleSellStock = (stockData: TrendingStock | (SearchStock & { exchange: 'NSE' | 'BSE' })) => {
+    console.log('Selling stock:', stockData);
+    const stock = convertToStock(stockData);
+    console.log('Converted stock:', stock);
+    setModalStock(stockData);
     setModalOrderType('SELL');
     setTradingModalOpen(true);
   };
@@ -373,16 +399,16 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
                           )}
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold trading-mono">₹{stock.ltp.toFixed(2)}</p>
+                          <p className="text-lg font-bold trading-mono">₹{(stock.ltp || 0).toFixed(2)}</p>
                           <p className={`text-sm trading-mono flex items-center justify-end ${
-                            stock.change >= 0 ? 'text-success' : 'text-destructive'
+                            (stock.change || 0) >= 0 ? 'text-success' : 'text-destructive'
                           }`}>
-                            {stock.change >= 0 ? (
+                            {(stock.change || 0) >= 0 ? (
                               <TrendingUp className="h-3 w-3 mr-1" />
                             ) : (
                               <TrendingDown className="h-3 w-3 mr-1" />
                             )}
-                            {stock.change >= 0 ? '+' : ''}₹{stock.change.toFixed(2)} ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                            {(stock.change || 0) >= 0 ? '+' : ''}₹{(stock.change || 0).toFixed(2)} ({(stock.changePercent || 0) >= 0 ? '+' : ''}{(stock.changePercent || 0).toFixed(2)}%)
                           </p>
                         </div>
                       </div>
@@ -604,6 +630,10 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
             onClose={() => setTradingModalOpen(false)}
             stock={convertToStock(modalStock)}
             orderType={modalOrderType}
+            onOrderComplete={() => {
+              fetchUserPortfolios();
+              setTradingModalOpen(false);
+            }}
           />
         )}
       </div>

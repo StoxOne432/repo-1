@@ -8,6 +8,7 @@ interface Profile {
   full_name: string;
   email: string;
   phone?: string;
+  password?: string;
   funds: number;
   is_verified: boolean;
   verification_status: 'pending' | 'approved' | 'rejected';
@@ -112,7 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-          phone: phone
+          phone: phone,
+          password: password
         }
       }
     });

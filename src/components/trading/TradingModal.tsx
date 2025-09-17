@@ -23,9 +23,10 @@ interface TradingModalProps {
   onClose: () => void;
   stock: Stock | null;
   orderType: 'BUY' | 'SELL';
+  onOrderComplete?: () => void;
 }
 
-export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModalProps) {
+export function TradingModal({ isOpen, onClose, stock, orderType, onOrderComplete }: TradingModalProps) {
   const [orderMode, setOrderMode] = useState<'MARKET' | 'LIMIT'>('MARKET');
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
@@ -36,15 +37,25 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Ensure all numeric properties are valid
+  const safeStock = stock ? {
+    ...stock,
+    ltp: stock.ltp || 0,
+    change: stock.change || 0,
+    changePercent: stock.changePercent || 0
+  } : null;
+
+  console.log('TradingModal rendering with stock:', safeStock);
+
   useEffect(() => {
-    if (isOpen && user && stock) {
+    if (isOpen && user && safeStock) {
       fetchUserData();
-      setPrice(stock.ltp.toString());
+      setPrice(safeStock.ltp.toString());
     }
   }, [isOpen, user, stock]);
 
   const fetchUserData = async () => {
-    if (!user || !stock) return;
+    if (!user || !safeStock) return;
 
     try {
       // Fetch user funds
@@ -63,7 +74,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
         .from('user_portfolios')
         .select('quantity')
         .eq('user_id', user.id)
-        .eq('stock_symbol', stock.symbol)
+        .eq('stock_symbol', safeStock.symbol)
         .maybeSingle();
 
       if (portfolioData) {
@@ -85,11 +96,13 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
   };
 
   const handlePlaceOrder = async () => {
-    if (!user || !stock || !quantity) return;
+    if (!user || !safeStock || !quantity) return;
 
     const qty = parseInt(quantity);
-    const orderPrice = orderMode === 'MARKET' ? stock.ltp : parseFloat(price);
+    const orderPrice = orderMode === 'MARKET' ? safeStock.ltp : parseFloat(price);
     const totalAmount = qty * orderPrice;
+
+    console.log('Order details:', { qty, orderPrice, totalAmount, orderMode, safeStock });
 
     // Validation
     if (qty <= 0) {
@@ -125,7 +138,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
       // Create order record
       const { error: orderError } = await supabase.from('orders').insert({
         user_id: user.id,
-        stock_symbol: stock.symbol,
+        stock_symbol: safeStock.symbol,
         order_type: orderType.toLowerCase(),
         quantity: qty,
         price: orderPrice,
@@ -138,7 +151,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
         throw orderError;
       }
 
-      console.log(`Processing ${orderType} order for ${qty} shares of ${stock.symbol}`);
+      console.log(`Processing ${orderType} order for ${qty} shares of ${safeStock.symbol}`);
 
       if (orderType === 'BUY') {
         // Update user funds
@@ -154,7 +167,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
           .from('user_portfolios')
           .select('*')
           .eq('user_id', user.id)
-          .eq('stock_symbol', stock.symbol)
+          .eq('stock_symbol', safeStock.symbol)
           .maybeSingle();
 
         if (existingPortfolio) {
@@ -166,11 +179,11 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             .update({
               quantity: newQuantity,
               avg_price: newAvgPrice,
-              current_price: stock.ltp,
-              profit_loss: (stock.ltp - newAvgPrice) * newQuantity
+              current_price: safeStock.ltp,
+              profit_loss: (safeStock.ltp - newAvgPrice) * newQuantity
             })
             .eq('user_id', user.id)
-            .eq('stock_symbol', stock.symbol);
+            .eq('stock_symbol', safeStock.symbol);
 
           if (updateError) throw updateError;
         } else {
@@ -178,11 +191,11 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             .from('user_portfolios')
             .insert({
               user_id: user.id,
-              stock_symbol: stock.symbol,
+              stock_symbol: safeStock.symbol,
               quantity: qty,
               avg_price: orderPrice,
-              current_price: stock.ltp,
-              profit_loss: (stock.ltp - orderPrice) * qty
+              current_price: safeStock.ltp,
+              profit_loss: (safeStock.ltp - orderPrice) * qty
             });
 
           if (insertError) throw insertError;
@@ -211,7 +224,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             .from('user_portfolios')
             .delete()
             .eq('user_id', user.id)
-            .eq('stock_symbol', stock.symbol);
+            .eq('stock_symbol', safeStock.symbol);
 
           if (deleteError) {
             console.error('Portfolio delete error:', deleteError);
@@ -223,7 +236,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             .from('user_portfolios')
             .select('avg_price')
             .eq('user_id', user.id)
-            .eq('stock_symbol', stock.symbol)
+            .eq('stock_symbol', safeStock.symbol)
             .maybeSingle();
 
           const avgPrice = portfolioData?.avg_price || orderPrice;
@@ -232,11 +245,11 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             .from('user_portfolios')
             .update({
               quantity: newQuantity,
-              current_price: stock.ltp,
-              profit_loss: (stock.ltp - avgPrice) * newQuantity
+              current_price: safeStock.ltp,
+              profit_loss: (safeStock.ltp - avgPrice) * newQuantity
             })
             .eq('user_id', user.id)
-            .eq('stock_symbol', stock.symbol);
+            .eq('stock_symbol', safeStock.symbol);
 
           if (updateError) {
             console.error('Portfolio update error:', updateError);
@@ -247,16 +260,16 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
 
       toast({
         title: "Order Placed Successfully",
-        description: `${orderType} order for ${qty} shares of ${stock.symbol} has been executed`,
+        description: `${orderType} order for ${qty} shares of ${safeStock.symbol} has been executed`,
       });
 
       // Refresh user data after successful order
       await fetchUserData();
       
-      // Trigger a page refresh to update all portfolio displays
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // Call callback to refresh data instead of page reload
+      if (onOrderComplete) {
+        onOrderComplete();
+      }
 
       handleClose();
     } catch (error: any) {
@@ -280,7 +293,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
 
   const orderValue = quantity && price ? parseInt(quantity) * parseFloat(price) : 0;
 
-  if (!stock) return null;
+  if (!stock || !safeStock) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -292,7 +305,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
             ) : (
               <TrendingDown className="w-5 h-5 text-red-600" />
             )}
-            {orderType} {stock.symbol}
+            {orderType} {safeStock.symbol}
           </DialogTitle>
         </DialogHeader>
 
@@ -301,15 +314,15 @@ export function TradingModal({ isOpen, onClose, stock, orderType }: TradingModal
           <div className="bg-muted/50 p-3 rounded-lg">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-medium">{stock.symbol}</h3>
+                <h3 className="font-medium">{safeStock.symbol}</h3>
                 <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                  {stock.name}
+                  {safeStock.name}
                 </p>
               </div>
               <div className="text-right">
-                <div className="font-semibold">{formatCurrency(stock.ltp)}</div>
-                <div className={`text-sm ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)} ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                <div className="font-semibold">{formatCurrency(safeStock.ltp)}</div>
+                <div className={`text-sm ${safeStock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {safeStock.change >= 0 ? '+' : ''}{safeStock.change.toFixed(2)} ({safeStock.changePercent >= 0 ? '+' : ''}{safeStock.changePercent.toFixed(2)}%)
                 </div>
               </div>
             </div>
