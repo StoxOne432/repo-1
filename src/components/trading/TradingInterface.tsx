@@ -30,13 +30,22 @@ interface Stock {
   low?: number;
 }
 
-// Helper function to convert SearchStock to Stock interface for trading
+// Helper function to convert SearchStock or TrendingStock to Stock interface for trading
 const convertToStock = (stock: TrendingStock | SearchStock | null): Stock | null => {
   if (!stock) return null;
   
-  if ('ltp' in stock) {
-    // This is a TrendingStock
-    return stock as Stock;
+  if ('price' in stock) {
+    // This is a TrendingStock with new interface
+    return {
+      symbol: stock.symbol,
+      name: stock.company_name,
+      ltp: stock.price,
+      change: stock.net_change,
+      changePercent: stock.percent_change,
+      volume: stock.volume || '0',
+      high: stock.high || stock.price,
+      low: stock.low || stock.price,
+    };
   } else {
     // This is a SearchStock, convert it
     const nsePrice = parseFloat(stock.currentPrice.NSE) || 0;
@@ -291,13 +300,13 @@ export function TradingInterface({ selectedStock }: TradingInterfaceProps) {
     }).format(amount);
   };
 
-  const handleBuyStock = (stock: TrendingStock | SearchStock) => {
+  const handleBuyStock = (stock: TrendingStock | (SearchStock & { exchange?: 'NSE' | 'BSE' })) => {
     setModalStock(stock);
     setModalOrderType('BUY');
     setTradingModalOpen(true);
   };
 
-  const handleSellStock = (stock: TrendingStock | SearchStock) => {
+  const handleSellStock = (stock: TrendingStock | (SearchStock & { exchange?: 'NSE' | 'BSE' })) => {
     setModalStock(stock);
     setModalOrderType('SELL');
     setTradingModalOpen(true);

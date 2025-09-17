@@ -173,6 +173,30 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio_price_updates: {
+        Row: {
+          current_price: number
+          id: string
+          price_date: string
+          stock_symbol: string
+          updated_at: string
+        }
+        Insert: {
+          current_price: number
+          id?: string
+          price_date?: string
+          stock_symbol: string
+          updated_at?: string
+        }
+        Update: {
+          current_price?: number
+          id?: string
+          price_date?: string
+          stock_symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -181,6 +205,7 @@ export type Database = {
           funds: number | null
           id: string
           is_verified: boolean | null
+          password: string | null
           phone: string | null
           updated_at: string
           user_id: string
@@ -195,6 +220,7 @@ export type Database = {
           funds?: number | null
           id?: string
           is_verified?: boolean | null
+          password?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -209,6 +235,7 @@ export type Database = {
           funds?: number | null
           id?: string
           is_verified?: boolean | null
+          password?: string | null
           phone?: string | null
           updated_at?: string
           user_id?: string
@@ -255,6 +282,8 @@ export type Database = {
           current_price: number
           id: string
           profit_loss: number
+          purchase_date: string | null
+          purchase_price: number | null
           quantity: number
           stock_symbol: string
           updated_at: string
@@ -266,6 +295,8 @@ export type Database = {
           current_price?: number
           id?: string
           profit_loss?: number
+          purchase_date?: string | null
+          purchase_price?: number | null
           quantity?: number
           stock_symbol: string
           updated_at?: string
@@ -277,6 +308,8 @@ export type Database = {
           current_price?: number
           id?: string
           profit_loss?: number
+          purchase_date?: string | null
+          purchase_price?: number | null
           quantity?: number
           stock_symbol?: string
           updated_at?: string
@@ -301,6 +334,30 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_watchlist: {
+        Row: {
+          added_at: string
+          id: string
+          stock_name: string | null
+          stock_symbol: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          stock_name?: string | null
+          stock_symbol: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          stock_name?: string | null
+          stock_symbol?: string
           user_id?: string
         }
         Relationships: []

@@ -1,4 +1,10 @@
 project_id = "gkagkpsbmlugllipiypu"
 
+[functions.delete-user]
+verify_jwt = false
+
 [functions.indian-stock-api]
+verify_jwt = false
+
+[functions.update-portfolio-prices]
 verify_jwt = false

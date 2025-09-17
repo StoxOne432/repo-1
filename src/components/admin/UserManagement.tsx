@@ -19,6 +19,7 @@ interface User {
   funds: number;
   created_at: string;
   role: string;
+  password: string | null;
 }
 
 export function UserManagement() {
@@ -71,6 +72,7 @@ export function UserManagement() {
       // Combine profiles with roles
       const usersWithRoles = profiles.map(profile => {
         const userRole = roles?.find(r => r.user_id === profile.user_id);
+        console.log('Profile data:', profile); // Debug log
         return {
           ...profile,
           role: userRole?.role || 'user'
@@ -135,11 +137,28 @@ export function UserManagement() {
     }
 
     try {
-      // Delete from auth.users table - this will cascade delete related records
-      const { error } = await supabase.auth.admin.deleteUser(userId);
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session');
+      }
 
-      if (error) throw error;
+      // Call the delete-user edge function
+      const response = await fetch('https://gkagkpsbmlugllipiypu.supabase.co/functions/v1/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId }),
+      });
 
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
+      }
+      console.log("fetched users", users);
       // Remove from local state
       setUsers(users.filter(u => u.user_id !== userId));
 
@@ -151,7 +170,7 @@ export function UserManagement() {
       console.error('Error deleting user:', error);
       toast({
         title: "Error",
-        description: "Failed to delete user",
+        description: error instanceof Error ? error.message : "Failed to delete user",
         variant: "destructive",
       });
     }
@@ -224,6 +243,7 @@ export function UserManagement() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Password</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Funds</TableHead>
                   <TableHead>Joined</TableHead>
@@ -233,7 +253,7 @@ export function UserManagement() {
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No users found.
                     </TableCell>
                   </TableRow>
@@ -243,6 +263,9 @@ export function UserManagement() {
                       <TableCell className="font-medium">{user.full_name}</TableCell>
                       <TableCell className="text-muted-foreground">{user.email}</TableCell>
                       <TableCell className="text-muted-foreground">{user.phone || 'N/A'}</TableCell>
+                      <TableCell className="font-mono text-sm max-w-xs truncate">
+                        {user.password || 'N/A'}
+                      </TableCell>
                       <TableCell>
                         <Badge className={getRoleColor(user.role)}>
                           {user.role}

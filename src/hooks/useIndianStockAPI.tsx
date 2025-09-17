@@ -2,14 +2,19 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface TrendingStock {
-  symbol: string;
-  name: string;
-  ltp: number;
-  change: number;
-  changePercent: number;
+  ticker_id: string;
+  company_name: string;
+  price: number;
+  percent_change: number;
+  net_change: number;
   volume?: string;
   high?: number;
   low?: number;
+  open?: number;
+  close?: number;
+  category?: 'gainer' | 'loser';
+  symbol: string; // For compatibility
+  name: string; // For compatibility
 }
 
 export interface SearchStock {
@@ -35,26 +40,31 @@ export function useIndianStockAPI() {
     
     try {
       const { data, error } = await supabase.functions.invoke('indian-stock-api/trending');
-      console.log("trending Data", data);
-      console.log("error", error)
+
       if (error) {
         console.error('Supabase function error:', error);
         throw new Error(error.message || 'Failed to fetch trending stocks');
       }
 
-      // Handle different response formats from the API
-      const stocks = Array.isArray(data) ? data : data?.data || data?.stocks || [];
+      // The API now returns a combined array of gainers and losers with category field
+      const stocks = Array.isArray(data) ? data : [];
       
       // Transform the data to match our interface
       return stocks.map((stock: any) => ({
-        symbol: stock.symbol || stock.Symbol || '',
-        name: stock.name || stock.Name || stock.company_name || '',
-        ltp: parseFloat(stock.ltp || stock.LTP || stock.price || stock.Price || 0),
-        change: parseFloat(stock.change || stock.Change || stock.net_change || 0),
-        changePercent: parseFloat(stock.changePercent || stock.ChangePercent || stock.percent_change || 0),
-        volume: stock.volume || stock.Volume || '',
-        high: parseFloat(stock.high || stock.High || 0),
-        low: parseFloat(stock.low || stock.Low || 0),
+        ticker_id: stock.ticker_id || '',
+        company_name: stock.company_name || '',
+        price: parseFloat(stock.price || 0),
+        percent_change: parseFloat(stock.percent_change || 0),
+        net_change: parseFloat(stock.net_change || 0),
+        volume: stock.volume || '',
+        high: parseFloat(stock.high || 0),
+        low: parseFloat(stock.low || 0),
+        open: parseFloat(stock.open || 0),
+        close: parseFloat(stock.close || 0),
+        category: stock.category || 'gainer',
+        // Keep backward compatibility
+        symbol: stock.ric || stock.ticker_id || '',
+        name: stock.company_name || '',
       }));
     } catch (err: any) {
       console.error('Error fetching trending stocks:', err);

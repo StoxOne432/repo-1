@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { useIndianStockAPI, TrendingStock } from '@/hooks/useIndianStockAPI';
+import { WatchlistButton } from '@/components/WatchlistButton';
 
 interface TrendingStocksProps {
   onBuyStock: (stock: TrendingStock) => void;
@@ -90,26 +91,40 @@ export function TrendingStocks({ onBuyStock, onSellStock }: TrendingStocksProps)
                   <div>
                     <h3 className="font-semibold text-foreground">{stock.symbol}</h3>
                     <p className="text-xs text-muted-foreground truncate max-w-[160px]">
-                      {stock.name}
+                      {stock.company_name}
                     </p>
                   </div>
-                  <div className={`flex items-center ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {stock.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  <div className={`flex items-center ${stock.net_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {stock.net_change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                   </div>
                 </div>
 
                 <div className="space-y-1 mb-4">
-                  <div className="text-xl font-bold text-foreground">
-                    {formatCurrency(stock.ltp)}
+                  <div className="flex items-center justify-between">
+                    <div className="text-xl font-bold text-foreground">
+                      {formatCurrency(stock.price)}
+                    </div>
+                    {stock.category && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        stock.category === 'gainer' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {stock.category}
+                      </span>
+                    )}
                   </div>
-                  <div className={`text-sm ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)} ({stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%)
+                  <div className={`text-sm ${stock.net_change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {stock.net_change >= 0 ? '+' : ''}{stock.net_change.toFixed(2)} ({stock.percent_change >= 0 ? '+' : ''}{stock.percent_change.toFixed(2)}%)
                   </div>
                   {stock.volume && (
                     <div className="text-xs text-muted-foreground">
-                      Vol: {stock.volume}
+                      Vol: {parseFloat(stock.volume).toLocaleString()}
                     </div>
                   )}
+                  <div className="text-xs text-muted-foreground">
+                    H: {formatCurrency(stock.high || 0)} L: {formatCurrency(stock.low || 0)}
+                  </div>
                 </div>
 
                 <div className="flex gap-2">
@@ -129,6 +144,14 @@ export function TrendingStocks({ onBuyStock, onSellStock }: TrendingStocksProps)
                   >
                     Sell
                   </Button>
+                </div>
+                <div className="mt-2">
+                  <WatchlistButton 
+                    symbol={stock.ticker_id} 
+                    name={stock.company_name}
+                    variant="ghost"
+                    size="sm"
+                  />
                 </div>
               </CardContent>
             </Card>
