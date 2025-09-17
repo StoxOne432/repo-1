@@ -83,7 +83,42 @@ Deno.serve(async (req) => {
 
     console.log(`Admin user ${user.id} attempting to delete user ${userId}`)
 
-    // Delete the user using service client admin API
+    // First, delete all related data to avoid foreign key constraint violations
+    try {
+      // Delete user's orders
+      await serviceClient.from('orders').delete().eq('user_id', userId)
+      
+      // Delete user's portfolio entries
+      await serviceClient.from('user_portfolios').delete().eq('user_id', userId)
+      
+      // Delete user's watchlist
+      await serviceClient.from('user_watchlist').delete().eq('user_id', userId)
+      
+      // Delete user's fund requests
+      await serviceClient.from('fund_requests').delete().eq('user_id', userId)
+      
+      // Delete user's withdrawal requests
+      await serviceClient.from('withdrawal_requests').delete().eq('user_id', userId)
+      
+      // Delete user's KYC documents
+      await serviceClient.from('kyc_documents').delete().eq('user_id', userId)
+      
+      // Delete user's roles
+      await serviceClient.from('user_roles').delete().eq('user_id', userId)
+      
+      // Delete user's profile
+      await serviceClient.from('profiles').delete().eq('user_id', userId)
+      
+      console.log(`Deleted all related data for user ${userId}`)
+    } catch (relatedDataError) {
+      console.error('Error deleting related data:', relatedDataError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to delete user related data' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Now delete the user using service client admin API
     const { error: deleteError } = await serviceClient.auth.admin.deleteUser(userId)
     
     if (deleteError) {

@@ -201,7 +201,13 @@ export function TradingModal({ isOpen, onClose, stock, orderType, onOrderComplet
           if (insertError) throw insertError;
         }
       } else { // SELL
-        console.log(`Selling ${qty} shares, user has ${userHolding} shares`);
+        console.log(`Selling ${qty} shares (type: ${typeof qty}), user has ${userHolding} shares (type: ${typeof userHolding})`);
+        
+        // Ensure both values are numbers for proper calculation
+        const sellQuantity = Number(qty);
+        const currentHolding = Number(userHolding);
+        
+        console.log(`Numeric values - Selling: ${sellQuantity}, Holding: ${currentHolding}`);
         
         // Update user funds
         const { error: fundsError } = await supabase
@@ -214,24 +220,39 @@ export function TradingModal({ isOpen, onClose, stock, orderType, onOrderComplet
           throw fundsError;
         }
 
-        // Update portfolio
-        const newQuantity = userHolding - qty;
-        console.log(`New quantity after sell: ${newQuantity}`);
+        // Calculate new quantity
+        const newQuantity = currentHolding - sellQuantity;
+        console.log(`New quantity after sell: ${newQuantity} (should be ${currentHolding - sellQuantity})`);
         
-        if (newQuantity === 0) {
-          console.log('Deleting portfolio entry as quantity is 0');
-          const { error: deleteError } = await supabase
+        if (newQuantity <= 0) {
+          console.log('Deleting portfolio entry as quantity is 0 or negative');
+          console.log('Delete parameters:', { user_id: user.id, stock_symbol: safeStock.symbol });
+          
+          const { data: deleteData, error: deleteError } = await supabase
             .from('user_portfolios')
             .delete()
             .eq('user_id', user.id)
-            .eq('stock_symbol', safeStock.symbol);
+            .eq('stock_symbol', safeStock.symbol)
+            .select();
 
           if (deleteError) {
             console.error('Portfolio delete error:', deleteError);
             throw deleteError;
           }
+          
+          console.log('Portfolio delete result:', deleteData);
+          console.log('Portfolio entry deleted successfully');
+          
+          // Verify deletion by checking if entry still exists
+          const { data: verifyData } = await supabase
+            .from('user_portfolios')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('stock_symbol', safeStock.symbol);
+            
+          console.log('Verification check - remaining entries:', verifyData);
         } else {
-          console.log('Updating portfolio with new quantity');
+          console.log('Updating portfolio with new quantity:', newQuantity);
           const { data: portfolioData } = await supabase
             .from('user_portfolios')
             .select('avg_price')
@@ -255,6 +276,7 @@ export function TradingModal({ isOpen, onClose, stock, orderType, onOrderComplet
             console.error('Portfolio update error:', updateError);
             throw updateError;
           }
+          console.log('Portfolio updated successfully');
         }
       }
 
@@ -263,13 +285,13 @@ export function TradingModal({ isOpen, onClose, stock, orderType, onOrderComplet
         description: `${orderType} order for ${qty} shares of ${safeStock.symbol} has been executed`,
       });
 
-      // Refresh user data after successful order
-      await fetchUserData();
-      
-      // Call callback to refresh data instead of page reload
+      // Call callback first to refresh portfolio and user data
       if (onOrderComplete) {
-        onOrderComplete();
+        await onOrderComplete();
       }
+      
+      // Then refresh local modal data
+      await fetchUserData();
 
       handleClose();
     } catch (error: any) {

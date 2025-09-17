@@ -120,10 +120,21 @@ export default function PortfolioPage() {
   const handleOrderComplete = async () => {
     // Refresh portfolio data after successful trade
     await fetchUserPortfolios();
-    // Refresh user profile to update funds
-    if (updateFunds) {
-      // The funds will be updated by the auth context
+    
+    // Force refresh user profile to get updated funds from database
+    if (profile?.user_id && updateFunds) {
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('funds')
+        .eq('user_id', profile.user_id)
+        .single();
+      
+      if (updatedProfile?.funds !== undefined) {
+        // Use updateFunds to refresh the context with new funds
+        await updateFunds(updatedProfile.funds);
+      }
     }
+    
     handleTradingModalClose();
   };
 
@@ -229,7 +240,9 @@ export default function PortfolioPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {userPortfolios.map((portfolio) => {
+                  {userPortfolios
+                    .filter(portfolio => portfolio.quantity > 0)
+                    .map((portfolio) => {
                     const daysHeld = calculateDaysHeld(portfolio.purchase_date);
                     const { profitLoss, profitLossPercentage } = calculateStockProfitLoss(
                       portfolio.current_price,

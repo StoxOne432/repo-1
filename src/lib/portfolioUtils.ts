@@ -1,21 +1,23 @@
 export const calculatePortfolioMetrics = (portfolios: any[]) => {
-  const totalValue = portfolios.reduce((sum, portfolio) => {
+  // Filter out any entries with 0 or negative quantity
+  const validPortfolios = portfolios.filter(portfolio => portfolio.quantity > 0);
+  
+  const totalValue = validPortfolios.reduce((sum, portfolio) => {
     return sum + (portfolio.current_price * portfolio.quantity);
   }, 0);
 
-  const totalProfitLoss = portfolios.reduce((sum, portfolio) => {
-    return sum + portfolio.profit_loss;
+  const totalInvested = validPortfolios.reduce((sum, portfolio) => {
+    return sum + (portfolio.avg_price * portfolio.quantity);
   }, 0);
 
-  const totalInvested = portfolios.reduce((sum, portfolio) => {
-    return sum + ((portfolio.purchase_price || portfolio.avg_price) * portfolio.quantity);
-  }, 0);
+  // Calculate P&L as current value minus invested value
+  const totalProfitLoss = totalValue - totalInvested;
 
   return {
     totalValue,
     totalProfitLoss,
     totalInvested,
-    totalHoldings: portfolios.length,
+    totalHoldings: validPortfolios.length,
     totalProfitLossPercentage: totalInvested > 0 ? ((totalProfitLoss / totalInvested) * 100) : 0
   };
 };
