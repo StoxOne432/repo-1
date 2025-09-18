@@ -137,10 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole(null);
   };
 
-  const updateFunds = async (amount: number) => {
+  const updateFunds = async (newFunds: number) => {
     if (!user || !profile) return;
 
-    const newFunds = profile.funds + amount;
     const { error } = await supabase
       .from('profiles')
       .update({ funds: newFunds })
